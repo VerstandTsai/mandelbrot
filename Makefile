@@ -1,13 +1,11 @@
-CC = gcc
-CFLAGS = -Wall -O3
-LIBS = -lm -lSDL2
+CC = /usr/local/cuda/bin/nvcc
+CFLAGS =
+LIBS = -lSDL2
+SRC = mandelbrot.cu
 
-all: mandelbrot.o
-	$(CC) mandelbrot.o -o mandelbrot $(LIBS)
+all: $(SRC)
+	$(CC) $(CFLAGS) $(SRC) -o mandelbrot $(LIBS)
 
-mandelbrot.o: mandelbrot.c
-	$(CC) $(CFLAGS) -c mandelbrot.c
-
-clear:
+clean:
 	rm -f *.o mandelbrot
 
