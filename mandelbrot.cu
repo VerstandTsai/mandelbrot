@@ -3,23 +3,26 @@
 #include <cuComplex.h>
 #include <stdio.h>
 
-#define PIXELS_PER_UNIT 300
+#define THREAD_COUNT 1024
+#define PIXELS_PER_UNIT 512
+#define COLOR_DEPTH 4
 
 const int window_width = PIXELS_PER_UNIT * 3;
 const int window_height = PIXELS_PER_UNIT * 2;
 
 __global__ void calcscr(int *screen) {
-    int i = blockIdx.x;
-    int j = threadIdx.x;
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = tid / window_width;
+    int x = tid % window_width;
     const double step = 1.0 / PIXELS_PER_UNIT;
     cuDoubleComplex z = make_cuDoubleComplex(0.0, 0.0);
-    cuDoubleComplex c = make_cuDoubleComplex(j*step-2.0, -i*step+1.0);
+    cuDoubleComplex c = make_cuDoubleComplex(x*step-2.0, -y*step+1.0);
     int k;
-    for (k=0; k<(1<<9); k++) {
+    for (k=0; k<(1<<(COLOR_DEPTH*3)); k++) {
         z = cuCadd(cuCmul(z, z), c);
         if (cuCabs(z) > 2.0) break;
     }
-    screen[i*window_width + j] = k;
+    screen[y*window_width + x] = k;
 }
 
 int main(void) {
@@ -36,20 +39,20 @@ int main(void) {
     int *g_screen;
     cudaMalloc(&g_screen, arraylen);
 
-    calcscr<<<window_height, window_width>>>(g_screen);
+    calcscr<<<window_width * window_height / THREAD_COUNT, THREAD_COUNT>>>(g_screen);
 
     cudaMemcpy(&screen, g_screen, arraylen, cudaMemcpyDeviceToHost);
     cudaFree(g_screen);
 
-    for (int i=0; i<window_height; i++) {
-        for (int j=0; j<window_width; j++) {
-            int k = screen[i*window_width + j];
+    for (int y=0; y<window_height; y++) {
+        for (int x=0; x<window_width; x++) {
+            int k = screen[y*window_width + x];
             unsigned char r, g, b;
-            r = ((k >> 6) & 7) << 5;
-            g = ((k >> 3) & 7) << 5;
-            b = (k & 7) << 5;
+            r = ((k >> (COLOR_DEPTH << 1)) & ((1 << COLOR_DEPTH)-1)) << (8-COLOR_DEPTH);
+            g = ((k >> COLOR_DEPTH) & ((1 << COLOR_DEPTH)-1)) << (8-COLOR_DEPTH);
+            b = (k & ((1 << COLOR_DEPTH)-1)) << (8-COLOR_DEPTH);
             SDL_SetRenderDrawColor(renderer, r, g, b, 0);
-            SDL_RenderDrawPoint(renderer, j, i);
+            SDL_RenderDrawPoint(renderer, x, y);
         }
     }
     SDL_RenderPresent(renderer);
