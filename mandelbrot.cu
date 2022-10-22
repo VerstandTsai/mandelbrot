@@ -3,8 +3,8 @@
 #include <cuComplex.h>
 #include <stdio.h>
 
-const int kWindowWidth = 1280;
-const int kWindowHeight = 720;
+const int kWindowWidth = 640;
+const int kWindowHeight = 480;
 const double kAspectRatio = (double)kWindowWidth / (double)kWindowHeight;
 const double kZoomScale = 0.5;
 const int kColorDepth = 3;
@@ -17,8 +17,8 @@ __host__ __device__ void pixel_to_num(
         double *num_x, double *num_y
 ) {
     double pixel_size = y_range / kWindowHeight;
-    *num_x = pixel_x*pixel_size+(center_x-y_range*kAspectRatio/2.0);
-    *num_y = -pixel_y*pixel_size+(center_y+y_range/2.0);
+    *num_x = pixel_x*pixel_size + center_x - y_range*kAspectRatio/2.0;
+    *num_y = -pixel_y*pixel_size + center_y + y_range/2.0;
 }
 
 __global__ void calcscr(int *screen, double center_x, double center_y, double y_range) {
@@ -52,6 +52,8 @@ int main(void) {
     int *g_screen;
     cudaMalloc(&g_screen, arraylen);
 
+    int mouse_x = 0;
+    int mouse_y = 0;
     double center_x = -0.5;
     double center_y = 0.0;
     double y_range = 3.0;
@@ -80,9 +82,13 @@ int main(void) {
                 case SDL_QUIT:
                     running = 0;
                     break;
-                case SDL_MOUSEBUTTONDOWN:
-                    pixel_to_num(event.motion.x, event.motion.y, center_x, center_y, y_range, &center_x, &center_y);
-                    y_range *= kZoomScale;
+                case SDL_MOUSEMOTION:
+                    mouse_x = event.motion.x;
+                    mouse_y = event.motion.y;
+                    break;
+                case SDL_MOUSEWHEEL:
+                    pixel_to_num(mouse_x, mouse_y, center_x, center_y, y_range, &center_x, &center_y);
+                    y_range *= (event.wheel.y > 0 ? kZoomScale : 1/kZoomScale);
                     break;
             }
         }
