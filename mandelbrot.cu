@@ -3,8 +3,8 @@
 #include <cuComplex.h>
 #include <stdio.h>
 
-const int kWindowWidth = 640;
-const int kWindowHeight = 480;
+const int kWindowWidth = 1280;
+const int kWindowHeight = 720;
 const double kAspectRatio = (double)kWindowWidth / (double)kWindowHeight;
 const double kZoomScale = 0.5;
 const int kColorDepth = 3;
