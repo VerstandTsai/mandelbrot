@@ -34,16 +34,26 @@ __global__ void calcscr(int *screen, double center_x, double center_y, double y_
         z = cuCadd(cuCmul(z, z), c);
         if (cuCabs(z) > 2.0) break;
     }
-    screen[y*kWindowWidth + x] = k;
+    unsigned char r, g, b;
+    r = ((k >> (kColorDepth << 1)) & ((1 << kColorDepth)-1)) << (8-kColorDepth);
+    g = ((k >> kColorDepth) & ((1 << kColorDepth)-1)) << (8-kColorDepth);
+    b = (k & ((1 << kColorDepth)-1)) << (8-kColorDepth);
+    screen[y*kWindowWidth + x] = (r << 24) + (g << 16) + (b << 8) + 0xff;
 }
 
 int main(void) {
+    SDL_Init(SDL_INIT_VIDEO);
     SDL_Event event;
     SDL_Renderer *renderer;
     SDL_Window *window;
-
-    SDL_Init(SDL_INIT_VIDEO);
     SDL_CreateWindowAndRenderer(kWindowWidth, kWindowHeight, 0, &window, &renderer);
+    SDL_Texture* texture = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        kWindowWidth,
+        kWindowHeight
+    );
 
     int num_pixels = kWindowWidth * kWindowHeight;
     int num_blocks = num_pixels / kNumThreads;
@@ -64,17 +74,13 @@ int main(void) {
 
         cudaMemcpy(&screen, g_screen, arraylen, cudaMemcpyDeviceToHost);
 
-        for (int y=0; y<kWindowHeight; y++) {
-            for (int x=0; x<kWindowWidth; x++) {
-                int k = screen[y*kWindowWidth + x];
-                unsigned char r, g, b;
-                r = ((k >> (kColorDepth << 1)) & ((1 << kColorDepth)-1)) << (8-kColorDepth);
-                g = ((k >> kColorDepth) & ((1 << kColorDepth)-1)) << (8-kColorDepth);
-                b = (k & ((1 << kColorDepth)-1)) << (8-kColorDepth);
-                SDL_SetRenderDrawColor(renderer, r, g, b, 0);
-                SDL_RenderDrawPoint(renderer, x, y);
-            }
-        }
+        void* pixels;
+        int pitch;
+        SDL_LockTexture(texture, NULL, &pixels, &pitch);
+        memcpy(pixels, screen, kWindowWidth * kWindowHeight * sizeof(uint32_t));
+        SDL_UnlockTexture(texture);
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
 
         while (SDL_PollEvent(&event)) {
